@@ -1,5 +1,5 @@
 # MIDS_w241_experiments_final_project
-MIDS W241 Causal Experiments Final Project on Social Media Detox
+MIDS W241 Experiments and Causality Final Project on Social Media Detox
 
 Stanley Ye, Shangyun Lv and Kuangwei Huang
 

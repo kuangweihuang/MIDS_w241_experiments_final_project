@@ -2,7 +2,7 @@
 MIDS W241 Causal Experiments Final Project on Social Media Detox
 
 Stanley Ye, Shangyun Lv and Kuangwei Huang
-School of Information, University of California, Berkeley
+
 {stanley.ye, shangyun.lv, kuangwei}@berkeley.edu
 
 2019 April 21st

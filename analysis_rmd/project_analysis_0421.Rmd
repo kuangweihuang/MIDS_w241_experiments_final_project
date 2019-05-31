@@ -1,0 +1,449 @@
+---
+title: "W241 Project Analysis"
+author: "Kuangwei Huang, Stanley Ye, Shangyun Lv"
+date: "21 April 2019"
+header-includes:
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r}
+# load packages 
+library(data.table)
+library(foreign)
+library(sandwich)
+library(lmtest)
+library(AER)
+library(multiwayvcov)                   # for clustered SEs 
+library(stargazer)
+```
+
+---------------
+** First Outcome - Daily app usage analysis with clustered standard errors **
+---------------
+
+```{r}
+# Reading the data and loading into datatable
+result <- read.csv(file = './data/result_daily2.csv', 
+                              header = TRUE, 
+                              sep = ',', 
+                              stringsAsFactors = FALSE)
+dt_daily0 <- data.table(result)
+
+# Filter for rows with daily usage measurements.
+dt_daily0 = dt_daily0[Has_Daily=="Yes"]
+head(dt_daily0)
+```
+
+
+```{r}
+# Defining a function for cluster robust standard errors
+
+run_ttestCls <- function(model, variable_list, cls){
+  
+  ## function that calculates Clustered SEs for a linear model
+  ## and provides the t-test of coefficients and calculates the
+  ## 95% confidence interval
+  
+  model_x_coeff <- model$coefficients
+
+  cat("\n")
+  cat("Using Clustered SE:\n")
+  
+  vcovCls <- cluster.vcov(model=model, cluster=cls)
+  se_model <- sqrt(diag(vcovCls))
+
+  print(coeftest(model, vcov=vcovCls))
+
+  for (variable in variable_list) {
+    cat("95% confidence interval of coeff. of",variable,":\n")
+    cat(model_x_coeff[variable]-1.96*se_model[variable],
+        model_x_coeff[variable]+1.96*se_model[variable],"\n")
+    cat("\n")
+  }
+  
+  return(se_model)
+}
+```
+
+** General Model**
+
+```{r}
+# Linear model to see if Treatment of sending messages affects average daily app usage post-treatment Day 7-14
+model_week1 <- dt_daily0[, lm(Week1 ~  Week0 + Treat)]
+model_week2 <- dt_daily0[, lm(Week2 ~  Week0 + Treat)]
+summary(model_week1)
+summary(model_week2)
+```
+```{r}
+# Adding clustered standard errors, clustering on ID
+num_clusters <- nrow(dt_daily0[, .N, by=.(ID)])
+
+model_week1.se <- run_ttestCls(model_week1, c("Week0","Treat"), dt_daily0[, ID])
+model_week2.se <- run_ttestCls(model_week2, c("Week0","Treat"), dt_daily0[, ID])
+```
+
+```{r, results='asis'}
+# Stargazer table for daily app usage, generic model, cls errors
+
+stargazer(model_week1, model_week2, 
+          #type="text",
+          type="latex",
+          se = list(model_week1.se, model_week2.se),
+          title = "Summary of Outcomes on Daily App Usage",
+          header = F,
+          font.size = "small",
+          dep.var.caption = c("Daily Social Media Usage (minutes)"),
+          dep.var.labels = c("during Week-1", "during Week-2"),
+          covariate.labels = c("Usage during Week-0 (minutes)", "Treatment during Week-1"),
+          star.cutoffs = c(0.1, 0.05, 0.01),
+          add.lines = list(c("Clustered SE on Subject", "Yes","Yes"),
+                           c("No. of Clusters", num_clusters, num_clusters))
+) 
+```
+
+** App Specific Model**
+
+```{r}
+# Linear model to see if Treatment of sending messages affects average daily app usage post-treatment Day 7-14
+model_week1_FB <- dt_daily0[Experiment_App=="FB", lm(Week1 ~  Week0 + Treat)]
+model_week2_FB <- dt_daily0[Experiment_App=="FB", lm(Week2 ~  Week0 + Treat)]
+model_week1_FB.se <- run_ttestCls(model_week1_FB, c("Week0","Treat"),
+                                  dt_daily0[Experiment_App=="FB", ID])
+model_week2_FB.se <- run_ttestCls(model_week2_FB, c("Week0","Treat"),
+                                  dt_daily0[Experiment_App=="FB", ID])
+
+model_week1_IG <- dt_daily0[Experiment_App=="Instagram", lm(Week1 ~  Week0 + Treat)]
+model_week2_IG <- dt_daily0[Experiment_App=="Instagram", lm(Week2 ~  Week0 + Treat)]
+model_week1_IG.se <- run_ttestCls(model_week1_IG, c("Week0","Treat"),
+                                  dt_daily0[Experiment_App=="Instagram", ID])
+model_week2_IG.se <- run_ttestCls(model_week2_IG, c("Week0","Treat"),
+                                  dt_daily0[Experiment_App=="Instagram", ID])
+
+model_week1_WC <- dt_daily0[Experiment_App=="WeChat", lm(Week1 ~  Week0 + Treat)]
+model_week2_WC <- dt_daily0[Experiment_App=="WeChat", lm(Week2 ~  Week0 + Treat)]
+model_week1_WC.se <- run_ttestCls(model_week1_WC, c("Week0","Treat"),
+                                  dt_daily0[Experiment_App=="WeChat", ID])
+model_week2_WC.se <- run_ttestCls(model_week2_WC, c("Week0","Treat"),
+                                  dt_daily0[Experiment_App=="WeChat", ID])
+
+num_clusters_FB <- nrow(dt_daily0[Experiment_App=="FB", .N, by=.(ID)])
+num_clusters_IG <- nrow(dt_daily0[Experiment_App=="Instagram", .N, by=.(ID)])
+num_clusters_WC <- nrow(dt_daily0[Experiment_App=="WeChat", .N, by=.(ID)])
+
+
+```
+\newpage
+\blandscape
+```{r, results='asis'}
+# Stargazer table for daily app usage, app specific model, cls errors
+
+stargazer(model_week1_FB, model_week1_IG, model_week1_WC, 
+          model_week2_FB, model_week2_IG, model_week2_WC, 
+          #type="text",
+          type="latex",
+          se = list(model_week1_FB.se, model_week1_IG.se, model_week1_WC.se,
+                    model_week2_FB.se, model_week2_IG.se, model_week2_WC.se),
+          title = "Summary of Outcomes on Daily App Usage, Segregated on the Different Apps",
+          header = F,
+          font.size = "small",
+          float = FALSE,
+          float.env = "sidewaystable",
+          dep.var.caption = c("Daily Social Media Usage (minutes)"),
+          dep.var.labels = c("during Week-1", "during Week-2"),
+          column.labels = c("Facebook", "Instagram", "WeChat", "Facebook", "Instagram", "WeChat"),
+          column.separate = c(1,1,1,1,1,1),
+          covariate.labels = c("Usage during Week-0\\\\ (minutes)", "Treatment during Week-1"),
+          star.cutoffs = c(0.1, 0.05, 0.01),
+          add.lines = list(c("Clustered SE on Subject", "Yes", "Yes", "Yes", "Yes", "Yes", "Yes"),
+                           c("No. of Clusters", num_clusters_FB, num_clusters_IG, num_clusters_WC,
+                             num_clusters_FB, num_clusters_IG, num_clusters_WC))
+)  
+```
+\elandscape
+
+---------------
+** Previous methodology with data import on averaged daily app usage only **
+---------------
+
+```{r}
+# Reading the data and loading into datatable
+result <- read.csv(file = './data/result.csv', 
+                              header = TRUE, 
+                              sep = ',', 
+                              stringsAsFactors = FALSE)
+dt0 <- data.table(result)
+```
+
+```{r}
+# Adding delta fields for daily_usage, activation and pleasant
+dt0[, "d_daily_usage":= daily_usage_7 - daily_usage_1 ]
+dt0[, "d2_daily_usage":= daily_usage_14 - daily_usage_1 ]
+dt0[, "pct_ch_daily_usage":= ((daily_usage_7 / daily_usage_1) - 1)*100]
+dt0[, "pct_ch2_daily_usage":= ((daily_usage_14 / daily_usage_1) - 1)*100]
+dt0[, "d_activation" := activation7 - activation1 ]
+dt0[, "d_pleasant"   := pleasant7 - pleasant1 ]
+
+# Adding dummy variables for FB, Instagram, and WeChat
+dt0[Experiment_App == "FB", "App_FB":= 1 ]
+dt0[Experiment_App != "FB", "App_FB":= 0 ]
+dt0[Experiment_App == "Instagram", "App_IG":= 1 ]
+dt0[Experiment_App != "Instagram", "App_IG":= 0 ]
+dt0[,"Age_under_30":= 0]
+dt0[Age < 30, "Age_under_30":= 1]
+dt0[,"Female":= 0]
+dt0[Gender == "Female", "Female":= 1]
+dt0[,"USA":= 0]
+dt0[Country == "United States of America", "USA":= 1]
+dt0[,"Android":= 0]
+dt0[Mobile_OS == "Android", "Android":= 1]
+```
+
+```{r}
+# Extract out only data from day 1 to Day 7 to reduce attrition
+dt1 <- copy(dt0)
+dt1[,c("activation14", "pleasant14", "daily_usage_14", "d2_daily_usage", "pct_ch2_daily_usage"):=NULL]
+
+dt1 <- data.table(na.omit(dt1))
+cat("From Day 1 up to Day 7: \n Total number of unattritted subjects:",nrow(dt1))
+```
+
+```{r}
+# Total data with full fields
+dt1[, .("Total"=.N), by=.(Experiment_App, Treat)][order(Experiment_App, Treat)]
+```
+```{r}
+scatterplotMatrix(~ Age + activation1 + pleasant1 + activation7 + pleasant7 + 
+                  daily_usage_1 + daily_usage_7, data=dt1,
+                  main="Scatterplot Matrix")
+```
+
+
+```{r}
+# Covariate Balance Check
+# Check Age between Treatment and Control
+t.test(dt1[Treat==1,Age], dt1[Treat==0, Age])
+
+# Check Gender between Treatment and Control
+gender <- c(dt1[Gender=='Male',.N], dt1[Gender=='Female',.N])
+chisq.test(gender, p = c(1/2, 1/2))
+```
+
+```{r}
+# New version of Histograms with difference in daily usage instead of percentage change
+par(mfrow=c(2,2))
+hist(dt1[Treat==0,d_daily_usage], breaks=10,
+     main="Histogram of Day7 and Day 1 
+Control Difference in Ave. App Usage Z=0", cex.main=1,
+     xlab="Change in ave App usage (min)")
+hist(dt1[Treat==1,d_daily_usage], breaks=10,
+     main="Histogram of Day7 and Day 1 
+Treatment Difference in Ave. App Usage", cex.main=1,
+     xlab="Change in ave App usage (min)")
+hist(dt1[Treat==0 & App_FB==1,d_daily_usage], breaks=5, 
+     main="Histogram of Day7 and Day 1 
+Control Difference in Ave. FB usage", cex.main=1,
+     xlab="Change in Facebook usage (min)")
+hist(dt1[Treat==1 & App_FB==1,d_daily_usage], breaks=5, 
+     main="Histogram of Day7 and Day 1 
+Treatment Difference in Ave. FB usage", cex.main=1,
+     xlab="Change in Facebook usage (min)")
+
+par(mfrow=c(2,2))
+hist(dt1[Treat==0 & App_IG==1,d_daily_usage], breaks=5, 
+     main="Histogram of Day7 and Day 1 
+Control Difference in Ave. IG usage", cex.main=1,
+     xlab="Change in Instagram usage (min)")
+hist(dt1[Treat==1 & App_IG==1,d_daily_usage], breaks=5, 
+     main="Histogram of Day7 and Day 1 
+Treatment Difference in Ave. IG usage", cex.main=1,
+     xlab="Change in Instagram usage (min)")
+hist(dt1[Treat==0 & App_IG==0 & App_FB==0,d_daily_usage], breaks=5, 
+     main="Histogram of Day7 and Day 1 
+Control Difference in Ave. WC usage", cex.main=1,
+     xlab="Change in WeChat usage (min)")
+hist(dt1[Treat==1 & App_IG==0 & App_FB==0,d_daily_usage], breaks=5, 
+     main="Histogram of Day7 and Day 1 
+Treatment Difference in Ave. WC usage", cex.main=1,
+     xlab="Change in WeChat usage (min)")
+```
+
+Note: No discernable trends between treatment and control
+
+```{r}
+# Sharp Null Hypothesis Analysis
+# Assuming that treatment has no effect on difference in ave daily usage on Day 7
+
+num_0 <- dt1[Treat==0,.N]
+num_1 <- dt1[Treat==1,.N]
+
+# Generate a random treatment vector
+randomize <- function(n_0,n_1) {
+  sample(c(rep(0, n_0), rep(1, n_1)))
+}
+
+# Calculate the average treatment effect
+est_ate <- function(outcome, treat) {
+  mean(outcome[treat == 1]) - mean(outcome[treat == 0])
+}
+
+# Setting the outcome variable : difference in Day 7 and Day 1 ave daily usage
+outcome_v <- dt1[, d_daily_usage]
+
+ate_d_ch <- dt1[Treat==1, mean(d_daily_usage)]
+
+# Replicate 10,000 times to get the sample distribution under sharp null 
+dist_under_sharp_null = replicate(10000, est_ate(outcome_v, randomize(num_0,num_1)))
+
+# Plotting histogram and density plot
+hist(dist_under_sharp_null, 
+     main = "Histogram of ATE under the Sharp Null
+(Difference in Day 7 and Day 1 Ave. Daily App usage)",
+     cex.main = 1)
+abline(v=ate_d_ch, col="red")
+```
+
+```{r}
+# Reporting results of the sharp null hypothesis
+
+two_tail_p_sharp_null <- length(dist_under_sharp_null[abs(dist_under_sharp_null) >= abs(ate_d_ch)]) /
+  length(dist_under_sharp_null)
+
+cat("The two-tailed p-value is", two_tail_p_sharp_null)
+if (two_tail_p_sharp_null < 0.05) {
+  cat("\np < 0.05, hence we reject the sharp null hypothesis.")
+} else {
+  cat("\np >= 0.05, hence we fail to reject the sharp null hypothesis.")
+}
+```
+
+---------------
+** Second Outcome - "Activation" and "Pleasant" emotional state analysis **
+---------------
+
+```{r, results='asis'}
+# Starting with generic mood model
+
+dt_gmood <- na.omit(dt0, cols = c('activation1', 'activation7', 'activation14',
+                                  'pleasant1', 'pleasant7','pleasant14'))
+m_gmood_act7 <- lm(activation7~activation1 + Treat , data = dt_gmood)
+m_gmood_act14 <- lm(activation14~activation1 + Treat , data = dt_gmood)
+m_gmood_ple7 <- lm(pleasant7~pleasant1 + Treat , data = dt_gmood)
+m_gmood_ple14 <- lm(pleasant14~pleasant1 + Treat , data = dt_gmood)
+
+dt_fb <- dt0[Experiment_App=='FB']
+dt_in <- dt0[Experiment_App=='Instagram']
+dt_wc <- dt0[Experiment_App=='WeChat']
+
+dt_fb17 <- na.omit(dt_fb, cols = c('activation1', 'activation7'))
+m_fb_17 <- lm(activation7~activation1 + Treat , data = dt_fb17)
+dt_fb114 <- na.omit(dt_fb, cols = c('activation1', 'activation14'))
+m_fb_114 <- dt_fb114[,lm(activation14~activation1 + Treat )]
+
+dt_in17 <- na.omit(dt_in, cols = c('activation1', 'activation7'))
+m_in_17 <- lm(activation7~activation1 + Treat , data = dt_in17)
+dt_in114 <- na.omit(dt_in, cols = c('activation1', 'activation14'))
+m_in_114 <- dt_in114[,lm(activation14~activation1 + Treat )]
+
+dt_wc17 <- na.omit(dt_wc, cols = c('activation1', 'activation7'))
+m_wc_17 <- lm(activation7~activation1 + Treat , data = dt_wc17)
+dt_wc114 <- na.omit(dt_wc, cols = c('activation1', 'activation14'))
+m_wc_114 <- dt_wc114[,lm(activation14~activation1 + Treat )]
+
+dt_fb17 <- na.omit(dt_fb, cols = c('pleasant1', 'pleasant7'))
+m_fb_17 <- lm(pleasant7~pleasant1 + Treat , data = dt_fb17)
+dt_fb114 <- na.omit(dt_fb, cols = c('pleasant1', 'pleasant14'))
+m_fb_114 <- dt_fb114[,lm(pleasant14~pleasant1 + Treat )]
+
+dt_wc17 <- na.omit(dt_wc, cols = c('pleasant1', 'pleasant7'))
+m_wc_17 <- lm(pleasant7~pleasant1 + Treat , data = dt_wc17)
+dt_wc114 <- na.omit(dt_wc, cols = c('pleasant1', 'pleasant14'))
+m_wc_114 <- dt_wc114[,lm(pleasant14~pleasant1 + Treat )]
+
+dt_in17 <- na.omit(dt_in, cols = c('pleasant1', 'pleasant7'))
+m_in_17 <- lm(pleasant7~pleasant1 + Treat , data = dt_in17)
+dt_in114 <- na.omit(dt_in, cols = c('pleasant1', 'pleasant14'))
+m_in_114 <- dt_in114[,lm(pleasant14~pleasant1 + Treat )]
+```
+\newpage
+\blandscape
+```{r,results='asis'}
+# Generic "Activation" Table for both Week-1 and Week-2
+stargazer(m_gmood_act7, m_gmood_act14, 
+          #type="text",
+          type="latex",
+          se = list(summary(m_gmood_act7)$coefficients[,2],
+                    summary(m_gmood_act14)$coefficients[,2]),
+          title = "Treatment Effect on \"Activation\" on Week-1 and Week-2",
+          header = F,
+          font.size = "small",
+          dep.var.caption = c("Emotional State \"Activation\" Score"),
+          dep.var.labels = c("on Week-1", "on Week-2"),
+          covariate.labels = c("\"Activation\" Score Week-0", "Treatment during Week-1"),
+          star.cutoffs = c(0.1, 0.05, 0.01)
+          ) 
+
+# Generic "Pleasant" Table for both Week-1 and Week-2
+stargazer(m_gmood_ple7, m_gmood_ple14, 
+          #type="text",
+          type="latex",
+          se = list(summary(m_gmood_ple7)$coefficients[,2],
+                    summary(m_gmood_ple14)$coefficients[,2]),
+          title = "Treatment Effect on \"Activation\" on Week-1 and Week-2",
+          header = F,
+          font.size = "small",
+          dep.var.caption = c("Emotional State \"Pleasant\" Score"),
+          dep.var.labels = c("on Week-1", "on Week-2"),
+          covariate.labels = c("\"Pleasant\" Score Week-0", "Treatment during Week-1"),
+          star.cutoffs = c(0.1, 0.05, 0.01)
+          ) 
+
+# App Specific "Activation" Table for both Week-1 and Week-2
+stargazer(m_fb_17, m_in_17, m_wc_17, m_fb_114, m_in_114, m_wc_114,
+          #type="text",
+          type="latex",
+          se = list(summary(m_fb_17)$coefficients[,2],
+                    summary(m_in_17)$coefficients[,2],
+                    summary(m_wc_17)$coefficients[,2]),
+          title = "Treatment Effect on \"Activation\" on Week-1 and Week-2",
+          header = FALSE,
+          font.size = "small",
+          float = FALSE,
+          float.env = "sidewaystable",
+          dep.var.caption = c("Emotional State \"Activation\" Score"),
+          dep.var.labels = c("on Week-1", "on Week-2"),
+          column.labels = c('Facebook','Instagram','WeChat',
+                            'Facebook','Instagram','WeChat'),
+          covariate.labels = c("\"Activation\" Score Week-0", "Treatment during Week-1"),
+          star.cutoffs = c(0.1, 0.05, 0.01)
+          )
+
+# App Specific "Pleasant" Table for both Week-1 and Week-2
+stargazer(m_fb_17, m_in_17, m_wc_17, m_fb_114, m_in_114, m_wc_114,
+          #type="text",
+          type="latex",
+          se = list(summary(m_fb_17)$coefficients[,2],
+                    summary(m_in_17)$coefficients[,2],
+                    summary(m_wc_17)$coefficients[,2],
+                    summary(m_fb_114)$coefficients[,2],
+                    summary(m_wc_114)$coefficients[,2],
+                    summary(m_in_114)$coefficients[,2]),
+          title = "Treatment Effect on \"Pleasant\" on Week-1 and Week-2",
+          header = FALSE,
+          font.size = "small",
+          float = FALSE,
+          float.env = "sidewaystable",
+          dep.var.caption = c("Emotional State \"Pleasant\" Score"),
+          dep.var.labels = c("on Week-1", "on Week-2"),
+          column.labels = c('Facebook','Instagram','WeChat',
+                            'Facebook','Instagram','WeChat'),
+          covariate.labels = c("\"Pleasant\" Score Week-0", "Treatment during Week-1"),
+          star.cutoffs = c(0.1, 0.05, 0.01)
+          )
+```
+\elandscape

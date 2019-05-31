@@ -1,0 +1,178 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Loading libraries
+
+```{r}
+library(data.table)
+
+```
+
+Loading data from CSV file
+
+```{r}
+# Reading the data and loading into datatable
+subjects_pre_rand <- read.csv(file = './data/subjects_pre_rand_ass_20190327.csv', 
+                              header = TRUE, 
+                              sep = ',', 
+                              stringsAsFactors = FALSE)
+dt_subjects <- data.table(subjects_pre_rand)
+
+# Adding a High_User Column for any subject whose 
+# max 7 day usage on Facebook, Instagram or WeChat >= 120 mins
+dt_subjects[FB==120 | Instagram==120 | WeChat==120, Hi_User:=1]
+dt_subjects$Hi_User[is.na(dt_subjects$Hi_User)] <- 0 
+
+# Printing the head of the datatable 
+head(dt_subjects)
+```
+
+```{r}
+# Blocking on App, Gender and High App Usage
+# Getting the number of observations for the different blocks
+
+num_obs_total <- nrow(dt_subjects)
+num_obs_pilot <- nrow(dt_subjects[Experiment_App=="Pilot",])
+
+
+
+num_obs_FB_F_H <- nrow(dt_subjects[Experiment_App=="FB" & 
+                                   Gender=="Female" & Hi_User==1])
+num_obs_FB_F_L <- nrow(dt_subjects[Experiment_App=="FB" & 
+                                   Gender=="Female" & Hi_User==0])
+num_obs_FB_M_H <- nrow(dt_subjects[Experiment_App=="FB" & 
+                                   Gender=="Male" & Hi_User==1])
+num_obs_FB_M_L <- nrow(dt_subjects[Experiment_App=="FB" & 
+                                   Gender=="Male" & Hi_User==0])
+
+num_obs_IG_F_H <- nrow(dt_subjects[Experiment_App=="Instagram" & 
+                                   Gender=="Female" & Hi_User==1])
+num_obs_IG_F_L <- nrow(dt_subjects[Experiment_App=="Instagram" & 
+                                   Gender=="Female" & Hi_User==0])
+num_obs_IG_M_H <- nrow(dt_subjects[Experiment_App=="Instagram" & 
+                                   Gender=="Male" & Hi_User==1])
+num_obs_IG_M_L <- nrow(dt_subjects[Experiment_App=="Instagram" & 
+                                   Gender=="Male" & Hi_User==0])
+
+num_obs_WC_F_H <- nrow(dt_subjects[Experiment_App=="WeChat" & 
+                                   Gender=="Female" & Hi_User==1])
+num_obs_WC_F_L <- nrow(dt_subjects[Experiment_App=="WeChat" & 
+                                   Gender=="Female" & Hi_User==0])
+num_obs_WC_M_H <- nrow(dt_subjects[Experiment_App=="WeChat" & 
+                                   Gender=="Male" & Hi_User==1])
+num_obs_WC_M_L <- nrow(dt_subjects[Experiment_App=="WeChat" & 
+                                   Gender=="Male" & Hi_User==0])
+
+# Setting up proportion of treatment 60-70% treatment
+num_treat_pilot <- as.integer(num_obs_pilot*.5)
+
+num_treat_FB_F_H <- as.integer(num_obs_FB_F_H*.7)
+num_treat_FB_F_L <- as.integer(num_obs_FB_F_L*.7)
+num_treat_FB_M_H <- as.integer(num_obs_FB_M_H*.7)
+num_treat_FB_M_L <- as.integer(num_obs_FB_M_L*.7)
+
+num_treat_IG_F_H <- as.integer(num_obs_IG_F_H*.7)
+num_treat_IG_F_L <- as.integer(num_obs_IG_F_L*.7)
+num_treat_IG_M_H <- as.integer(num_obs_IG_M_H*.7)
+num_treat_IG_M_L <- as.integer(num_obs_IG_M_L*.7)
+
+num_treat_WC_F_H <- as.integer(num_obs_WC_F_H*.6)
+num_treat_WC_F_L <- as.integer(num_obs_WC_F_L*.6)
+num_treat_WC_M_H <- as.integer(num_obs_WC_M_H*.6)
+num_treat_WC_M_L <- as.integer(num_obs_WC_M_L*.6)
+
+```
+
+Blocking by App
+Setting up randomization 60% - 70% treatment
+
+```{r}
+# Generating the randomized treatment variable in each block
+Z_Pilot <- sample(c(rep(0, num_obs_pilot - num_treat_pilot),
+                    rep(1, num_treat_pilot)), size=num_obs_pilot, replace=FALSE)
+
+Z_FB_F_H <- sample(c(rep(0, num_obs_FB_F_H - num_treat_FB_F_H),
+                    rep(1, num_treat_FB_F_H)), size=num_obs_FB_F_H, replace=FALSE)
+Z_FB_F_L <- sample(c(rep(0, num_obs_FB_F_L - num_treat_FB_F_L),
+                    rep(1, num_treat_FB_F_L)), size=num_obs_FB_F_L, replace=FALSE)
+Z_FB_M_H <- sample(c(rep(0, num_obs_FB_M_H - num_treat_FB_M_H),
+                    rep(1, num_treat_FB_M_H)), size=num_obs_FB_M_H, replace=FALSE)
+Z_FB_M_L <- sample(c(rep(0, num_obs_FB_M_L - num_treat_FB_M_L),
+                    rep(1, num_treat_FB_M_L)), size=num_obs_FB_M_L, replace=FALSE)
+
+Z_IG_F_H <- sample(c(rep(0, num_obs_IG_F_H - num_treat_IG_F_H),
+                    rep(1, num_treat_IG_F_H)), size=num_obs_IG_F_H, replace=FALSE)
+Z_IG_F_L <- sample(c(rep(0, num_obs_IG_F_L - num_treat_IG_F_L),
+                    rep(1, num_treat_IG_F_L)), size=num_obs_IG_F_L, replace=FALSE)
+Z_IG_M_H <- sample(c(rep(0, num_obs_IG_M_H - num_treat_IG_M_H),
+                    rep(1, num_treat_IG_M_H)), size=num_obs_IG_M_H, replace=FALSE)
+Z_IG_M_L <- sample(c(rep(0, num_obs_IG_M_L - num_treat_IG_M_L),
+                    rep(1, num_treat_IG_M_L)), size=num_obs_IG_M_L, replace=FALSE)
+
+Z_WC_F_H <- sample(c(rep(0, num_obs_WC_F_H - num_treat_WC_F_H),
+                    rep(1, num_treat_WC_F_H)), size=num_obs_WC_F_H, replace=FALSE)
+Z_WC_F_L <- sample(c(rep(0, num_obs_WC_F_L - num_treat_WC_F_L),
+                    rep(1, num_treat_WC_F_L)), size=num_obs_WC_F_L, replace=FALSE)
+Z_WC_M_H <- sample(c(rep(0, num_obs_WC_M_H - num_treat_WC_M_H),
+                    rep(1, num_treat_WC_M_H)), size=num_obs_WC_M_H, replace=FALSE)
+Z_WC_M_L <- sample(c(rep(0, num_obs_WC_M_L - num_treat_WC_M_L),
+                    rep(1, num_treat_WC_M_L)), size=num_obs_WC_M_L, replace=FALSE)
+
+```
+
+Applying the randomization and generating the contact lists
+
+```{r}
+dt_subjects[Experiment_App=="Pilot",Treat:=Z_Pilot, ] 
+
+dt_subjects[Experiment_App=="FB" & Gender=="Female" & Hi_User==1,
+            Treat:=Z_FB_F_H,] 
+dt_subjects[Experiment_App=="FB" & Gender=="Female" & Hi_User==0,
+            Treat:=Z_FB_F_L,] 
+dt_subjects[Experiment_App=="FB" & Gender=="Male" & Hi_User==1,
+            Treat:=Z_FB_M_H,] 
+dt_subjects[Experiment_App=="FB" & Gender=="Male" & Hi_User==0,
+            Treat:=Z_FB_M_L,] 
+
+dt_subjects[Experiment_App=="Instagram" & Gender=="Female" & Hi_User==1,
+            Treat:=Z_IG_F_H,] 
+dt_subjects[Experiment_App=="Instagram" & Gender=="Female" & Hi_User==0,
+            Treat:=Z_IG_F_L,] 
+dt_subjects[Experiment_App=="Instagram" & Gender=="Male" & Hi_User==1,
+            Treat:=Z_IG_M_H,] 
+dt_subjects[Experiment_App=="Instagram" & Gender=="Male" & Hi_User==0,
+            Treat:=Z_IG_M_L,] 
+
+dt_subjects[Experiment_App=="WeChat" & Gender=="Female" & Hi_User==1,
+            Treat:=Z_WC_F_H,] 
+dt_subjects[Experiment_App=="WeChat" & Gender=="Female" & Hi_User==0,
+            Treat:=Z_WC_F_L,] 
+dt_subjects[Experiment_App=="WeChat" & Gender=="Male" & Hi_User==1,
+            Treat:=Z_WC_M_H,] 
+dt_subjects[Experiment_App=="WeChat" & Gender=="Male" & Hi_User==0,
+            Treat:=Z_WC_M_L,] 
+
+# Writing out the full subjects to cSV
+write.csv(dt_subjects, file = './data/subjects_post_rand_ass_20190327.csv')
+
+# Writing out the contact lists
+write.csv(dt_subjects[Experiment_App=="Pilot" & Treat==1,], file = './data/block_pilot_treat_20190327.csv')
+write.csv(dt_subjects[Experiment_App=="Pilot" & Treat==0,], file = './data/block_pilot_cntrl_20190327.csv')
+write.csv(dt_subjects[Experiment_App=="FB" & Treat==1,], file = './data/block_FB_treat_20190327.csv')
+write.csv(dt_subjects[Experiment_App=="FB" & Treat==0,], file = './data/block_FB_cntrl_20190327.csv')
+write.csv(dt_subjects[Experiment_App=="Instagram" & Treat==1,], file = './data/block_IG_treat_20190327.csv')
+write.csv(dt_subjects[Experiment_App=="Instagram" & Treat==0,], file = './data/block_IG_cntrl_20190327.csv')
+write.csv(dt_subjects[Experiment_App=="WeChat" & Treat==1,], file = './data/block_WC_treat_20190327.csv')
+write.csv(dt_subjects[Experiment_App=="WeChat" & Treat==0,], file = './data/block_WC_cntrl_20190327.csv')
+```
+
+```{r}
+dt_subjects[, .(count=.N), by=.(Experiment_App, Treat)][order(Experiment_App, Treat)]
+
+dt_subjects[, .(count=.N), by=.(Experiment_App, Gender, Country, Treat)][order(Experiment_App, Treat)]
+```
+
+
+
